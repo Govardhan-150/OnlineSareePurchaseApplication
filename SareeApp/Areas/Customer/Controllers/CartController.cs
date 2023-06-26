@@ -165,6 +165,7 @@ namespace SareeApp.Areas.Customer.Controllers
             OrderHeader orderHeader=_unitOfWork.OrderHeader.GetFirstOrDefault(u=>u.Id==id);
             if(orderHeader.PaymentStatus!=SD.PaymentStatusDelayedPayment)
             {
+                //if the user is customer
                 var service = new SessionService();
                 Session session = service.Get(orderHeader.SessionId);
                 if (session.PaymentStatus.ToLower() == "paid")
