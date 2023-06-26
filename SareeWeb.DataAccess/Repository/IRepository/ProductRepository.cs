@@ -21,7 +21,7 @@ namespace SareeWeb.DataAccess.Repository.IRepository
             if(objFromDb != null)
             {
                 objFromDb.ProductNumber = obj.ProductNumber;
-                objFromDb.ProductName = obj.ProductNumber;
+                objFromDb.ProductName = obj.ProductName;
                 objFromDb.ProductDescription = obj.ProductDescription;
                 objFromDb.ListPrice = obj.ListPrice;
                 objFromDb.Price50 = obj.Price50;

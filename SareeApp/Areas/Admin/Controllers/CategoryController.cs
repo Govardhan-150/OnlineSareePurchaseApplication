@@ -1,11 +1,14 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.Build.Framework;
 using SareeApp.Data;
 using SareeWeb.DataAccess.Repository;
 using SareeWeb.Models;
+using SareeWeb.Utility;
 
 namespace SareeApp.Areas.Admin.Controllers
 {
+    [Authorize(Roles =SD.Role_Admin)]
     [Area("Admin")]
     public class CategoryController : Controller
     {

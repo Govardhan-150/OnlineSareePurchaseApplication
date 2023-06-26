@@ -1,10 +1,13 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using SareeWeb.DataAccess.Repository;
 using SareeWeb.Models;
+using SareeWeb.Utility;
 
 namespace SareeApp.Areas.Admin.Controllers
 {
     [Area("Admin")]
+    [Authorize(Roles = SD.Role_Admin)]
     public class CoverTypeController : Controller
     {
         private readonly IUnitOfWork _UnitOfWork;

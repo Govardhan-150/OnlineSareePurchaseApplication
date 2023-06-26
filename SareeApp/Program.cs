@@ -7,6 +7,7 @@ using SareeWeb.Utility;
 using SareeWeb.DataAccess.Repository;
 using Microsoft.Extensions.DependencyInjection;
 using Stripe;
+using SareeWeb.DataAccess.DbInitializer;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -21,11 +22,25 @@ builder.Services.AddIdentity<IdentityUser, IdentityRole>().AddDefaultTokenProvid
     .AddEntityFrameworkStores<ApplicationDbContext>();
 builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
 builder.Services.AddSingleton<IEmailSender, EmailSender>();
+builder.Services.AddScoped<IDbInitializer, DbInitializer>();
 builder.Services.ConfigureApplicationCookie(options =>
 {
     options.LoginPath = $"/Identity/Account/Login";
     options.LogoutPath = $"/Identity/Account/Logout";
     options.AccessDeniedPath = $"/Identity/Account/AccessDenied";
+});
+
+builder.Services.AddAuthentication().AddFacebook(options =>
+{
+    options.AppId = "1007577440269353";
+    options.AppSecret = "2b2689ed376d60d7c02ec10f06fb012a";
+});
+builder.Services.AddDistributedMemoryCache();
+builder.Services.AddSession(options =>
+{
+    options.IdleTimeout = TimeSpan.FromMinutes(100);
+    options.Cookie.HttpOnly = true;
+    options.Cookie.IsEssential = true;
 });
 var app = builder.Build();
 
@@ -45,6 +60,8 @@ StripeConfiguration.ApiKey = builder.Configuration.GetSection("Stripe:SecretKey"
 app.UseAuthentication();
 
 app.UseAuthorization();
+app.UseSession();
+SeedDatabase();
 app.MapRazorPages();
 
 app.MapControllerRoute(
@@ -52,3 +69,12 @@ app.MapControllerRoute(
     pattern: "{area=Customer}/{controller=Home}/{action=Index}/{id?}");
 
 app.Run();
+
+void SeedDatabase()
+{
+    using(var scope = app.Services.CreateScope())
+    {
+        var dbInitializer = scope.ServiceProvider.GetRequiredService<IDbInitializer>();
+        dbInitializer.Initialize();
+    }
+}

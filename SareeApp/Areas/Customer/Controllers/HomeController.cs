@@ -1,8 +1,11 @@
 ﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using SareeWeb.DataAccess.Repository;
+using SareeWeb.DataAccess.Repository.IRepository;
 using SareeWeb.Models;
 using SareeWeb.Models.ViewModels;
+using SareeWeb.Utility;
 using System.Diagnostics;
 using System.Security.Claims;
 
@@ -22,6 +25,13 @@ namespace SareeApp.Areas.Customer.Controllers
 
         public IActionResult Index()
         {
+            var claimsIdentity = (ClaimsIdentity)User.Identity;
+            var claims = claimsIdentity.FindFirst(ClaimTypes.NameIdentifier);
+            if (claims != null)
+            {
+                HttpContext.Session.SetInt32(SD.SessionCart, _UnitOfWork.ShoppingCart.
+                    GetAll(u => u.ApplicationUserId == claims.Value).Count());           
+            }
             IEnumerable<Product> ProductList = _UnitOfWork.Product.GetAll(includeProperties: "Category,CoverType");
             return View(ProductList);
         }
@@ -48,12 +58,15 @@ namespace SareeApp.Areas.Customer.Controllers
             if(cartFromDb==null)
             {
                 _UnitOfWork.ShoppingCart.Add(shoppingCart);
+                _UnitOfWork.Save();
+                HttpContext.Session.SetInt32(SD.SessionCart, _UnitOfWork.ShoppingCart.GetAll(
+                u => u.ApplicationUserId == claim.Value).Count());
             }
             else
             {
                 _UnitOfWork.ShoppingCart.Increment(cartFromDb,shoppingCart.Count);
+                _UnitOfWork.Save();
             }
-            _UnitOfWork.Save();
             return RedirectToAction(nameof(Index));
         }
 

@@ -15,5 +15,10 @@ namespace SareeWeb.DataAccess.Repository.IRepository
         {
             _db = db;
         }
+
+        public void update(ApplicationUser user)
+        {
+            _db.ApplicationUsers.Update(user);
+        }
     }
 }

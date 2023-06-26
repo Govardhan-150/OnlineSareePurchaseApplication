@@ -1,4 +1,5 @@
 ﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Identity.UI.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 using SareeWeb.DataAccess.Repository;
@@ -16,9 +17,11 @@ namespace SareeApp.Areas.Customer.Controllers
     public class CartController : Controller
     {
         private readonly IUnitOfWork _unitOfWork;
-        public CartController(IUnitOfWork unitOfWork)
+        //private readonly IEmailSender _emailSender;
+        public CartController(IUnitOfWork unitOfWork/*,IEmailSender emailSender*/)
         {
             _unitOfWork = unitOfWork;
+            //_emailSender = emailSender;
         }
         public ShoppingCartVM ShoppingCartVM { get; set; }
         public IActionResult Index()
@@ -67,50 +70,48 @@ namespace SareeApp.Areas.Customer.Controllers
         [ActionName("Summary")]
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public IActionResult SummaryPOST(ShoppingCartVM ShoppingCartVM)
+        public IActionResult SummaryPOST(ShoppingCartVM shoppingCartVM)
         {
             var claimsIdentity = (ClaimsIdentity)User.Identity;
-            var Claims = claimsIdentity.FindFirst(ClaimTypes.NameIdentifier);
-            ShoppingCartVM.ListCart = _unitOfWork.ShoppingCart.GetAll
-                (u => u.ApplicationUserId == Claims.Value, includeProperties: "Product");
-            ShoppingCartVM.OrderHeader.OrderDate = System.DateTime.Now;
-            ShoppingCartVM.OrderHeader.ApplicationUserId = Claims.Value;
-            foreach (var cart in ShoppingCartVM.ListCart)
+            var claims = claimsIdentity.FindFirst(ClaimTypes.NameIdentifier).Value;
+            shoppingCartVM.ListCart = _unitOfWork.ShoppingCart.GetAll(u => u.ApplicationUserId == claims, includeProperties: "Product");
+            foreach (var cart in shoppingCartVM.ListCart)
             {
                 cart.Price = GetPriceBasedOnQuantity(cart.Count, cart.Product.Price,
                     cart.Product.Price50, cart.Product.Price100);
-                ShoppingCartVM.OrderHeader.OrderTotal += (cart.Price * cart.Count);
+                shoppingCartVM.OrderHeader.OrderTotal += cart.Price * cart.Count;
             }
-            ApplicationUser applicationUser = _unitOfWork.ApplicationUser.GetFirstOrDefault(u => u.Id == Claims.Value);
+            ApplicationUser applicationUser = _unitOfWork.ApplicationUser.GetFirstOrDefault(u => u.Id == claims);
+            shoppingCartVM.OrderHeader.ApplicationUser = applicationUser;
+            shoppingCartVM.OrderHeader.OrderDate = System.DateTime.Now;
             if (applicationUser.CompanyId.GetValueOrDefault() == 0)
             {
-                ShoppingCartVM.OrderHeader.PaymentStatus = SD.PaymentStatusPending;
-                ShoppingCartVM.OrderHeader.OrderStatus = SD.StatusPending;
+                shoppingCartVM.OrderHeader.OrderStatus = SD.StatusPending;
+                shoppingCartVM.OrderHeader.PaymentStatus = SD.PaymentStatusPending;
             }
             else
             {
-                ShoppingCartVM.OrderHeader.PaymentStatus = SD.PaymentStatusDelayedPayment;
-                ShoppingCartVM.OrderHeader.OrderStatus = SD.StatusApproved;
+                shoppingCartVM.OrderHeader.OrderStatus = SD.StatusApproved;
+                shoppingCartVM.OrderHeader.PaymentStatus = SD.PaymentStatusDelayedPayment;
             }
-            _unitOfWork.OrderHeader.Add(ShoppingCartVM.OrderHeader);
+            _unitOfWork.OrderHeader.Add(shoppingCartVM.OrderHeader);
             _unitOfWork.Save();
-            foreach (var cart in ShoppingCartVM.ListCart)
+            foreach (var cart in shoppingCartVM.ListCart)
             {
                 OrderDetail orderDetail = new()
                 {
                     ProductId = cart.ProductId,
-                    OrderId = ShoppingCartVM.OrderHeader.Id,
                     Price = cart.Price,
-                    Count = cart.Count
+                    Count = cart.Count,
+                    OrderId = shoppingCartVM.OrderHeader.Id,
                 };
                 _unitOfWork.OrderDetail.Add(orderDetail);
                 _unitOfWork.Save();
             }
-
             //stripe settings
             if (applicationUser.CompanyId.GetValueOrDefault() == 0)
             {
-                var domain = "https://localhost:7090/";
+                var domain = "https://localhost:44329/";
                 var options = new SessionCreateOptions
                 {
                     PaymentMethodTypes = new List<string>
@@ -119,10 +120,10 @@ namespace SareeApp.Areas.Customer.Controllers
                     },
                     LineItems = new List<SessionLineItemOptions>(),
                     Mode = "payment",
-                    SuccessUrl = domain + $"Customer/Cart/OrderConfirmation?id={ShoppingCartVM.OrderHeader.Id}",
+                    SuccessUrl = domain + $"Customer/Cart/OrderConfirmation?id={shoppingCartVM.OrderHeader.Id}",
                     CancelUrl = domain + $"Customer/Cart/Index",
                 };
-                foreach (var item in ShoppingCartVM.ListCart)
+                foreach (var item in shoppingCartVM.ListCart)
                 {
                     var sessionLineItem = new SessionLineItemOptions
                     {
@@ -144,7 +145,7 @@ namespace SareeApp.Areas.Customer.Controllers
                 var service = new SessionService();
                 Session session = service.Create(options);
 
-                _unitOfWork.OrderHeader.UpdateStripePaymentId(ShoppingCartVM.OrderHeader.Id, session.Id, session.PaymentIntentId);
+                _unitOfWork.OrderHeader.UpdateStripePaymentId(shoppingCartVM.OrderHeader.Id, session.Id, session.PaymentIntentId);
                 _unitOfWork.Save();
                 Response.Headers.Add("Location", session.Url);
                 return new StatusCodeResult(303);
@@ -156,13 +157,14 @@ namespace SareeApp.Areas.Customer.Controllers
             }
             else
             {
-                return RedirectToAction("OrderConfirmation","Cart", new { id = ShoppingCartVM.OrderHeader.Id });
+                return RedirectToAction("OrderConfirmation", "Cart", new { id = shoppingCartVM.OrderHeader.Id });
             }
         }
-        
+        [ActionName("OrderConfirmation")]
         public IActionResult OrderConfirmation(int id)
         {
-            OrderHeader orderHeader=_unitOfWork.OrderHeader.GetFirstOrDefault(u=>u.Id==id);
+            OrderHeader orderHeader=_unitOfWork.OrderHeader.GetFirstOrDefault
+                (u=>u.Id==id,includeProperties:"ApplicationUser");
             if(orderHeader.PaymentStatus!=SD.PaymentStatusDelayedPayment)
             {
                 //if the user is customer
@@ -170,10 +172,14 @@ namespace SareeApp.Areas.Customer.Controllers
                 Session session = service.Get(orderHeader.SessionId);
                 if (session.PaymentStatus.ToLower() == "paid")
                 {
+                    _unitOfWork.OrderHeader.UpdateStripePaymentId(id, session.Id, session.PaymentIntentId);
                     _unitOfWork.OrderHeader.UpdateStatus(id, SD.StatusApproved, SD.PaymentStatusApproved);
                     _unitOfWork.Save();
                 }
+                HttpContext.Session.Clear();
             }
+            //_emailSender.SendEmailAsync(orderHeader.ApplicationUser.Email, "New order-book store",
+            //    $"<p>New order placed-{orderHeader.Id}</p>");
            
             List<ShoppingCart> shoppingCarts= _unitOfWork.ShoppingCart.GetAll(u=>u.ApplicationUserId==
             orderHeader.ApplicationUserId).ToList();
@@ -184,7 +190,7 @@ namespace SareeApp.Areas.Customer.Controllers
         }
         public IActionResult plus(int cartId)
         {
-            var cart=_unitOfWork.ShoppingCart.GetFirstOrDefault(u=>u.Id==cartId);
+            var cart = _unitOfWork.ShoppingCart.GetFirstOrDefault(u => u.Id == cartId);
             _unitOfWork.ShoppingCart.Increment(cart, 1);
             _unitOfWork.Save();
             return RedirectToAction(nameof(Index));
@@ -194,6 +200,8 @@ namespace SareeApp.Areas.Customer.Controllers
             var cart = _unitOfWork.ShoppingCart.GetFirstOrDefault(u => u.Id == cartId);
             if(cart.Count<=1)
             {
+                HttpContext.Session.SetInt32(SD.SessionCart, _unitOfWork.ShoppingCart.
+                GetAll(u => u.ApplicationUserId == cart.ApplicationUserId).Count() - 1);
                 _unitOfWork.ShoppingCart.Remove(cart);
             }
             else
@@ -206,6 +214,8 @@ namespace SareeApp.Areas.Customer.Controllers
         public IActionResult remove(int cartId)
         {
             var cart = _unitOfWork.ShoppingCart.GetFirstOrDefault(u => u.Id == cartId);
+            HttpContext.Session.SetInt32(SD.SessionCart,_unitOfWork.ShoppingCart.
+                GetAll(u=>u.ApplicationUserId==cart.ApplicationUserId).Count()-1);
             _unitOfWork.ShoppingCart.Remove(cart);
             _unitOfWork.Save();
             return RedirectToAction(nameof(Index));

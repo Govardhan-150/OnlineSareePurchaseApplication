@@ -15,7 +15,7 @@
                                 </div>
                                 <div class="pl-1">
                                 <p>List Price:<strike><b>₹@product.ListPrice.ToString("0.00")</b></strike></p>
-                                <p>As low as:<b>₹@product.Price100.ToString("0.00")</b></p>
+                                <p>As low as:<b>₹@product.Price.ToString("0.00")</b></p>
                                 </div>
                             <div>
                                 <a asp-action="Details" class="btn btn-primary form-control" asp-route-productId="@product.Id">Details</a>

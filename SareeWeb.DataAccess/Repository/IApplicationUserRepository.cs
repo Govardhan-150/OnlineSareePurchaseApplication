@@ -10,5 +10,6 @@ namespace SareeWeb.DataAccess.Repository
 {
     public interface IApplicationUserRepository : IRepository<ApplicationUser>
     {
+        public void update(ApplicationUser user);
     }
 }

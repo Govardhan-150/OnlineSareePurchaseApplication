@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.AspNetCore.Routing.Constraints;
 using Microsoft.DotNet.Scaffolding.Shared.Messaging;
@@ -6,10 +7,12 @@ using Microsoft.EntityFrameworkCore.Metadata.Internal;
 using SareeWeb.DataAccess.Repository;
 using SareeWeb.Models;
 using SareeWeb.Models.ViewModels;
+using SareeWeb.Utility;
 
 namespace SareeApp.Areas.Admin.Controllers
 {
     [Area("Admin")]
+    [Authorize(Roles = SD.Role_Admin)]
     public class CompanyController : Controller
     {
         private readonly IUnitOfWork _UnitOfWork;

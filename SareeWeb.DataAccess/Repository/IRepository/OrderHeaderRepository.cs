@@ -34,9 +34,15 @@ namespace SareeWeb.DataAccess.Repository.IRepository
         }
         public void UpdateStripePaymentId(int id, string sessionId, string paymentIntentId)
         {
-            var orderFromDb = _db.OrderHeaders.FirstOrDefault(u => u.Id == id);
-            orderFromDb.SessionId=sessionId;
-            orderFromDb.PaymentIntentId = paymentIntentId;
+            var orderHeaderFromDb = _db.OrderHeaders.FirstOrDefault(u => u.Id == id);
+            if (!string.IsNullOrEmpty(sessionId))
+            {
+                orderHeaderFromDb.SessionId = sessionId;
+            }
+            if (!string.IsNullOrEmpty(paymentIntentId))
+            {
+                orderHeaderFromDb.PaymentIntentId = paymentIntentId;
+            }
         }
     }
 }

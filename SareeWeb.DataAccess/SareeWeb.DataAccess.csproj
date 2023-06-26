@@ -14,6 +14,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\SareeWeb.Models\SareeWeb.Models.csproj" />
+    <ProjectReference Include="..\SareeWeb.Utility\SareeWeb.Utility.csproj" />
   </ItemGroup>
 
 </Project>
